@@ -1,4 +1,4 @@
-from core import Passenger, DoorsStatus
+from core import DoorsStatus, Passenger
 from elevator import PassengerElevator
 
 

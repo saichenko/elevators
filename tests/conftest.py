@@ -3,7 +3,7 @@ import random
 import pytest
 
 from src.core import Call, Floor, Passenger
-from src.elevator import PassengerElevator, ElevatorOPSAQueue
+from src.elevator import ElevatorOPSAQueue, PassengerElevator
 
 
 @pytest.fixture(scope="function")
