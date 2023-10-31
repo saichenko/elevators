@@ -21,10 +21,16 @@ class DoorsStatus(enum.IntEnum):
     CLOSED = 2
 
 
-class Direction(enum.Flag):
+class Direction(enum.IntEnum):
     """Elevator direction."""
-    UP = True
-    DOWN = False
+    UP = 1
+    DOWN = 2
+
+
+def get_opposite_direction(direction: Direction) -> Direction:
+    if direction == Direction.UP:
+        return Direction.DOWN
+    return Direction.UP
 
 
 @attrs.define

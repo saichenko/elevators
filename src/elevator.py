@@ -1,7 +1,11 @@
-import typing as t
 import operator
+import typing as t
 
-from core import Call, Direction, ElevatorQueueAbstract, Floor
+from core import (Call, Direction, DoorsStatus, ElevatorAbstract,
+                  ElevatorQueueAbstract, ElevatorStatus, Floor, Passenger,
+                  get_opposite_direction)
+from exceptions import (ElevatorDoorsClosedError, ElevatorFullError,
+                        InvalidFloorError, PassengerNotInElevatorError)
 
 
 def get_compare_operator(
@@ -13,8 +17,14 @@ def get_compare_operator(
     return operator.gt
 
 
-class ElevatorEDAQueue(ElevatorQueueAbstract):
-    """Implementation of EDA (Elevator Dispatching Algorithm) algorithm."""
+class ElevatorOPSAQueue(ElevatorQueueAbstract):
+    """Implementation of Optimal Passenger Sorting Algorithm.
+
+    The algorithm that takes into account all passengers on all floors
+    and aims to minimize waiting time and the number of stops. In this
+    algorithm, the elevator seeks to optimize its movement by considering
+    all passengers and their calls from different floors.
+    """
 
     def __init__(self, start_floor: Floor):
         self.__requests: t.List[Call] = []
@@ -29,6 +39,7 @@ class ElevatorEDAQueue(ElevatorQueueAbstract):
 
     @property
     def stopped(self) -> bool:
+        """Flag that indicates whether elevator is stopped or not"""
         return self.__stopped
 
     @property
@@ -37,6 +48,7 @@ class ElevatorEDAQueue(ElevatorQueueAbstract):
 
     @property
     def selected_floors(self) -> tuple[Floor]:
+        """Set of floors that were called inside."""
         return tuple(self.__selected_floors)
 
     def __get_farthest_request(self, in_current_direction: bool) -> Call:
@@ -53,8 +65,10 @@ class ElevatorEDAQueue(ElevatorQueueAbstract):
                 farthest = call
         return farthest
 
-    def __get_farthest_selected_floor(self,
-                                      in_current_direction: bool) -> Floor:
+    def __get_farthest_selected_floor(
+            self,
+            in_current_direction: bool,
+    ) -> Floor:
         farthest = None
         for floor in self.selected_floors:
             if in_current_direction and self.__compare_direction(
@@ -111,7 +125,7 @@ class ElevatorEDAQueue(ElevatorQueueAbstract):
         return True
 
     def __need_to_stop(self) -> bool:
-        """Check if elevator need to stop on current floor."""
+        """Check if elevator need to stop and process stoppage."""
         to_stop = False
         if self.__current_floor in self.__selected_floors:
             self.__selected_floors.remove(self.__current_floor)
@@ -145,17 +159,17 @@ class ElevatorEDAQueue(ElevatorQueueAbstract):
 
             for call in self.__selected_floors:
                 compare = get_compare_operator(direction)
-                if self.__compare_direction(call) == direction and compare(
-                        floor, call):
+                if (self.__compare_direction(call) == direction
+                        and compare(floor, call)):
                     return direction
-            return ~direction
+            return get_opposite_direction(direction)
 
         if direction is None or not self.__selected_floors:
             farthest_call = self.__get_farthest_request(
                 in_current_direction=direction is not None,
             )
             if direction is not None and farthest_call is None:
-                return ~direction
+                return get_opposite_direction(direction)
 
             if farthest_call.floor > floor:
                 return Direction.UP
@@ -163,22 +177,95 @@ class ElevatorEDAQueue(ElevatorQueueAbstract):
                 return farthest_call.direction
             return Direction.DOWN
 
-        return ~direction
+        return get_opposite_direction(direction)
 
     def __update_direction(self):
         self.__current_direction = self.__get_new_direction()
 
-    def __set_next_floor(self) -> Floor | None:
+    def __set_next_floor(self):
         if self.__current_direction is None:
             return self.__current_floor
         if self.__current_direction == Direction.UP:
             self.__current_floor += 1
         else:
             self.__current_floor -= 1
-        return self.__current_floor
 
     def determine_next(self):
         self.__set_next_floor()
         self.__stopped = self.__need_to_stop()
         self.__update_direction()
-        self.__update_direction()
+
+
+class PassengerElevator(ElevatorAbstract):
+
+    MAX_FLOOR: int = 12
+    MIN_FLOOR: int = 1
+    CAPACITY: int = 10
+
+    def __init__(self, start_floor: Floor | None):
+        self.__queue = ElevatorOPSAQueue(start_floor or Floor(self.MIN_FLOOR))
+        self.__status: ElevatorStatus = ElevatorStatus.IDLE
+        self.__passengers: t.List[Passenger] = []
+
+    @property
+    def doors(self) -> DoorsStatus:
+        if self.status == ElevatorStatus.WAITING_ON_THE_FLOOR:
+            return DoorsStatus.OPEN
+        return DoorsStatus.CLOSED
+
+    @property
+    def status(self) -> ElevatorStatus:
+        return self.__status
+
+    @property
+    def passengers(self) -> tuple[Passenger]:
+        return tuple(self.__passengers)
+
+    @property
+    def capacity_left(self) -> int:
+        return self.CAPACITY - len(self.__passengers)
+
+    def enter_elevator(self, passenger: Passenger):
+        if self.doors == DoorsStatus.CLOSED:
+            raise ElevatorDoorsClosedError
+        if self.capacity_left < 1:
+            raise ElevatorFullError("Elevator capacity exceeded.")
+        self.__passengers.append(passenger)
+
+    def exit_elevator(self, passenger: Passenger):
+        if self.doors == DoorsStatus.CLOSED:
+            raise ElevatorDoorsClosedError
+        if passenger in self.passengers:
+            self.__passengers.remove(passenger)
+            return
+        raise PassengerNotInElevatorError
+
+    @property
+    def current_direction(self) -> Direction | None:
+        return self.__queue.current_direction
+
+    @property
+    def current_floor(self) -> Floor:
+        return self.__queue.current_floor
+
+    @property
+    def selected_floors(self) -> tuple[Floor]:
+        return self.__queue.selected_floors
+
+    def add_request(self, call: Call):
+        min_floor = self.MIN_FLOOR
+        max_floor = self.MAX_FLOOR
+        if (min_floor >= call.floor <= max_floor and
+                min_floor >= call.destination <= max_floor):
+            raise InvalidFloorError(f"Please make sure that floor is "
+                                    f"in range [{min_floor} , {max_floor}]")
+        self.__queue.add_request(call)
+
+    def move(self):
+        self.__queue.determine_next()
+        if not self.__queue.has_requests:
+            self.__status = ElevatorStatus.IDLE
+        elif self.__queue.stopped:
+            self.__status = ElevatorStatus.WAITING_ON_THE_FLOOR
+        else:
+            self.__status = ElevatorStatus.IN_MOVEMENT

@@ -1,7 +1,7 @@
 import pytest
 
 from src.core import Call, Floor
-from src.elevator import ElevatorEDAQueue
+from src.elevator import ElevatorOPSAQueue
 
 
 @pytest.mark.parametrize(
@@ -14,7 +14,7 @@ from src.elevator import ElevatorEDAQueue
         Call(floor=Floor(1), destination=Floor(8)),
     ],
 )
-def test_linear_movement_up(call: Call, eda_queue: ElevatorEDAQueue):
+def test_linear_movement_up(call: Call, eda_queue: ElevatorOPSAQueue):
     eda_queue.add_request(call)
     previous_floor = eda_queue.current_floor
     while eda_queue.has_requests:
@@ -39,7 +39,7 @@ def test_linear_movement_up(call: Call, eda_queue: ElevatorEDAQueue):
         Call(floor=Floor(-1), destination=Floor(-2)),
     ],
 )
-def test_linear_movement_down(call: Call, eda_queue: ElevatorEDAQueue):
+def test_linear_movement_down(call: Call, eda_queue: ElevatorOPSAQueue):
     eda_queue.add_request(call)
     previous_floor = eda_queue.current_floor
     while eda_queue.has_requests:
@@ -63,7 +63,7 @@ def test_linear_movement_down(call: Call, eda_queue: ElevatorEDAQueue):
         Call(floor=Floor(8), destination=Floor(1)),
     ],
 )
-def test_movement_up_and_down(call: Call, eda_queue: ElevatorEDAQueue):
+def test_movement_up_and_down(call: Call, eda_queue: ElevatorOPSAQueue):
     eda_queue.add_request(call)
     previous_floor = eda_queue.current_floor
     reverse_move = False
