@@ -1,11 +1,14 @@
 import operator
 import typing as t
-
+from loguru import logger
+import sys
 from core import (Call, Direction, DoorsStatus, ElevatorAbstract,
                   ElevatorQueueAbstract, ElevatorStatus, Floor, Passenger,
                   get_opposite_direction)
 from exceptions import (ElevatorDoorsClosedError, ElevatorFullError,
                         InvalidFloorError, PassengerNotInElevatorError)
+
+logger.add(sys.stderr, format="{message} | {extra}")
 
 
 def get_compare_operator(
@@ -83,6 +86,7 @@ class ElevatorOPSAQueue(ElevatorQueueAbstract):
         return farthest
 
     def add_request(self, call: Call):
+        logger.info("Request was added to queue.", extra={"call": call})
         self.__requests.append(call)
 
     @property
@@ -95,6 +99,10 @@ class ElevatorOPSAQueue(ElevatorQueueAbstract):
         return Direction.UP
 
     def __add_selected_floor(self, floor: Floor):
+        logger.info(
+            "Floor was added to selected floors.",
+            extra={"floor": floor},
+        )
         self.__selected_floors.add(floor)
 
     def __process_requests_to_stop(self) -> bool:
@@ -194,6 +202,13 @@ class ElevatorOPSAQueue(ElevatorQueueAbstract):
         self.__set_next_floor()
         self.__stopped = self.__need_to_stop()
         self.__update_direction()
+        logger.info(
+            "Next floor was determined.",
+            extra={
+                "current_floor": self.__current_floor,
+                "current_direction": self.__current_direction,
+            },
+        )
 
 
 class PassengerElevator(ElevatorAbstract):
@@ -229,6 +244,7 @@ class PassengerElevator(ElevatorAbstract):
         if self.doors == DoorsStatus.CLOSED:
             raise ElevatorDoorsClosedError
         if self.capacity_left < 1:
+            logger.info("Elevator capacity was exceeded.")
             raise ElevatorFullError("Elevator capacity exceeded.")
         self.__passengers.append(passenger)
 
@@ -237,7 +253,15 @@ class PassengerElevator(ElevatorAbstract):
             raise ElevatorDoorsClosedError
         if passenger in self.passengers:
             self.__passengers.remove(passenger)
+            logger.info(
+                "Passenger was exited from elevator.",
+                extra={"passenger": passenger},
+            )
             return
+        logger.warning(
+            "Passenger was not in elevator.",
+            extra={"passenger": passenger},
+        )
         raise PassengerNotInElevatorError
 
     @property
@@ -269,3 +293,4 @@ class PassengerElevator(ElevatorAbstract):
             self.__status = ElevatorStatus.WAITING_ON_THE_FLOOR
         else:
             self.__status = ElevatorStatus.IN_MOVEMENT
+        logger.info("Elevator was moved.", extra={"status": self.__status})

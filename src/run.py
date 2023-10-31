@@ -1,8 +1,8 @@
 import random
-
+from loguru import logger
 from elevator import Call, DoorsStatus, Floor, Passenger, PassengerElevator
 from exceptions import ElevatorFullError
-
+import time
 
 def make_decision() -> bool:
     """Return True if decided to add request."""
@@ -26,6 +26,7 @@ passengers_made_calls: list[Passenger] = []
 
 
 def run():
+    logger.info("Start simulation.")
     elevator = PassengerElevator(start_floor=Floor(1))
     while True:
         decision = make_decision()
@@ -48,6 +49,7 @@ def run():
                         break
 
         elevator.move()
+        time.sleep(1)
 
 
 if __name__ == '__main__':
