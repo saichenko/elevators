@@ -20,7 +20,7 @@ def test_linear_movement_up(call: Call, eda_queue: ElevatorOPSAQueue):
     while eda_queue.has_requests:
         eda_queue.determine_next()
         if eda_queue.current_floor in (call.floor, call.destination):
-            assert eda_queue.stopped is True
+            assert eda_queue.is_stopped is True
         if eda_queue.current_floor == previous_floor:
             continue
         assert eda_queue.current_floor == previous_floor + 1
@@ -49,7 +49,7 @@ def test_linear_movement_down(call: Call, eda_queue: ElevatorOPSAQueue):
         assert eda_queue.current_floor == previous_floor - 1
         assert eda_queue.current_floor > call.destination - 1
         if eda_queue.current_floor in (call.floor, call.destination):
-            assert eda_queue.stopped is True
+            assert eda_queue.is_stopped is True
         previous_floor = eda_queue.current_floor
 
 
@@ -86,4 +86,4 @@ def test_movement_up_and_down(call: Call, eda_queue: ElevatorOPSAQueue):
         # Prevent checking destination floor first time.
         if ((eda_queue.current_floor == call.destination and reverse_move)
                 or eda_queue.current_floor == call.floor):
-            assert eda_queue.stopped is True
+            assert eda_queue.is_stopped is True

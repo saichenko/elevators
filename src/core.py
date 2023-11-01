@@ -67,7 +67,7 @@ class ElevatorQueueAbstract(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def selected_floors(self) -> Floor:
+    def selected_floors(self) -> tuple[Floor, ...]:
         """Return selected floors inside of elevator."""
 
     @property
@@ -86,7 +86,7 @@ class ElevatorQueueAbstract(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def stopped(self) -> bool:
+    def is_stopped(self) -> bool:
         """Return queue movement status."""
 
     @abc.abstractmethod
@@ -113,7 +113,7 @@ class ElevatorAbstract(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def passengers(self) -> tuple[Passenger]:
+    def passengers(self) -> tuple[Passenger, ...]:
         """Return passengers inside of elevator."""
 
     @property
@@ -141,7 +141,7 @@ class ElevatorAbstract(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def selected_floors(self) -> tuple[Floor]:
+    def selected_floors(self) -> tuple[Floor, ...]:
         """Return selected floors."""
 
     @abc.abstractmethod

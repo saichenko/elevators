@@ -1,12 +1,18 @@
 import random
 from loguru import logger
 from elevator import Call, DoorsStatus, Floor, Passenger, PassengerElevator
-from exceptions import ElevatorFullError
+from exceptions import ElevatorFullError, PassengerNotInElevatorError
 import time
+from decimal import Decimal
+import sys
+
+
+logger.add(sys.stderr, format="{extra}")
+
 
 def make_decision() -> bool:
     """Return True if decided to add request."""
-    return random.random() < 0.3
+    return random.random() < Decimal("0.3")
 
 
 def generate_passenger_with_call(elevator: PassengerElevator) -> Passenger:
@@ -38,7 +44,14 @@ def run():
         if elevator.doors == DoorsStatus.OPEN:
             for passenger in elevator.passengers:
                 if elevator.current_floor == passenger.call.destination:
-                    elevator.exit_elevator(passenger)
+                    try:
+                        elevator.exit_elevator(passenger)
+                    except PassengerNotInElevatorError:
+                        logger.warning(
+                            "Passenger is not in elevator.",
+                            extra={"passenger_id": passenger.id},
+                        )
+                        continue
 
             for passenger in passengers_made_calls:
                 if elevator.current_floor == passenger.call.floor:
@@ -46,8 +59,8 @@ def run():
                         elevator.enter_elevator(passenger)
                         passengers_made_calls.remove(passenger)
                     except ElevatorFullError:
+                        logger.info("Elevator capacity was exceeded.")
                         break
-
         elevator.move()
         time.sleep(1)
 

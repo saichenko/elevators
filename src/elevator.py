@@ -1,19 +1,16 @@
 import operator
 import typing as t
 from loguru import logger
-import sys
 from core import (Call, Direction, DoorsStatus, ElevatorAbstract,
                   ElevatorQueueAbstract, ElevatorStatus, Floor, Passenger,
                   get_opposite_direction)
 from exceptions import (ElevatorDoorsClosedError, ElevatorFullError,
                         InvalidFloorError, PassengerNotInElevatorError)
 
-logger.add(sys.stderr, format="{message} | {extra}")
-
 
 def get_compare_operator(
         direction: Direction,
-) -> t.Union[operator.gt, operator.lt]:
+) -> t.Callable[[t.Any, t.Any], bool]:
     """Return operator for comparing direction of floors."""
     if direction == Direction.UP:
         return operator.lt
@@ -23,34 +20,36 @@ def get_compare_operator(
 class ElevatorOPSAQueue(ElevatorQueueAbstract):
     """Implementation of Optimal Passenger Sorting Algorithm.
 
-    The algorithm that takes into account all passengers on all floors
-    and aims to minimize waiting time and the number of stops. In this
-    algorithm, the elevator seeks to optimize its movement by considering
-    all passengers and their calls from different floors.
+    The implementation of this queue algorithm is centered around prioritizing
+    the most distant calls and efficiently grouping passengers with the same
+    direction as the current elevator's travel, servicing them all the way to
+    the top floor with a compatible call direction. It is particularly
+    well-suited for a single elevator in a building with up to 12 floors,
+    ensuring optimal and streamlined service.
     """
 
     def __init__(self, start_floor: Floor):
-        self.__requests: t.List[Call] = []
+        self.__requests: list[Call] = []
         self.__selected_floors: set[Floor] = set()
         self.__current_direction: Direction | None = None
         self.__current_floor = start_floor
-        self.__stopped = False
+        self.__is_stopped = False
 
     @property
     def current_floor(self) -> Floor:
         return self.__current_floor
 
     @property
-    def stopped(self) -> bool:
+    def is_stopped(self) -> bool:
         """Flag that indicates whether elevator is stopped or not"""
-        return self.__stopped
+        return self.__is_stopped
 
     @property
     def current_direction(self) -> Direction | None:
         return self.__current_direction
 
     @property
-    def selected_floors(self) -> tuple[Floor]:
+    def selected_floors(self) -> tuple[Floor, ...]:
         """Set of floors that were called inside."""
         return tuple(self.__selected_floors)
 
@@ -74,8 +73,9 @@ class ElevatorOPSAQueue(ElevatorQueueAbstract):
     ) -> Floor:
         farthest = None
         for floor in self.selected_floors:
-            if in_current_direction and self.__compare_direction(
-                    floor) != self.__current_direction:
+            direction = self.__current_direction
+            if (in_current_direction and
+                    self.__compare_direction(floor) != direction):
                 continue
             if farthest is None:
                 farthest = floor
@@ -86,24 +86,25 @@ class ElevatorOPSAQueue(ElevatorQueueAbstract):
         return farthest
 
     def add_request(self, call: Call):
-        logger.info("Request was added to queue.", extra={"call": call})
         self.__requests.append(call)
+        logger.info("Request was added to queue.", extra={"call": call})
 
     @property
     def has_requests(self) -> bool:
         return bool(self.__requests) or bool(self.__selected_floors)
 
-    def __compare_direction(self, floor: Floor) -> Direction:
+    def __compare_direction(self, floor: Floor | None = None) -> Direction:
+        floor = floor or self.current_floor
         if self.__current_floor > floor:
             return Direction.DOWN
         return Direction.UP
 
     def __add_selected_floor(self, floor: Floor):
+        self.__selected_floors.add(floor)
         logger.info(
             "Floor was added to selected floors.",
             extra={"floor": floor},
         )
-        self.__selected_floors.add(floor)
 
     def __process_requests_to_stop(self) -> bool:
         floor = self.__current_floor
@@ -158,12 +159,13 @@ class ElevatorOPSAQueue(ElevatorQueueAbstract):
         # If only selected floors are left.
         if self.__selected_floors:
             if direction is None:
-                farthest_call = self.__get_farthest_selected_floor(
+                farthest_selected_floor = self.__get_farthest_selected_floor(
                     in_current_direction=direction is not None,
                 )
-                if farthest_call > floor:
-                    return Direction.UP
-                return Direction.DOWN
+                return self.__compare_direction(farthest_selected_floor)
+                # if farthest_selected_floor > floor:
+                #     return Direction.UP
+                # return Direction.DOWN
 
             for call in self.__selected_floors:
                 compare = get_compare_operator(direction)
@@ -200,7 +202,7 @@ class ElevatorOPSAQueue(ElevatorQueueAbstract):
 
     def determine_next(self):
         self.__set_next_floor()
-        self.__stopped = self.__need_to_stop()
+        self.__is_stopped = self.__need_to_stop()
         self.__update_direction()
         logger.info(
             "Next floor was determined.",
@@ -220,7 +222,7 @@ class PassengerElevator(ElevatorAbstract):
     def __init__(self, start_floor: Floor | None):
         self.__queue = ElevatorOPSAQueue(start_floor or Floor(self.MIN_FLOOR))
         self.__status: ElevatorStatus = ElevatorStatus.IDLE
-        self.__passengers: t.List[Passenger] = []
+        self.__passengers: list[Passenger] = []
 
     @property
     def doors(self) -> DoorsStatus:
@@ -233,7 +235,7 @@ class PassengerElevator(ElevatorAbstract):
         return self.__status
 
     @property
-    def passengers(self) -> tuple[Passenger]:
+    def passengers(self) -> tuple[Passenger, ...]:
         return tuple(self.__passengers)
 
     @property
@@ -244,8 +246,10 @@ class PassengerElevator(ElevatorAbstract):
         if self.doors == DoorsStatus.CLOSED:
             raise ElevatorDoorsClosedError
         if self.capacity_left < 1:
-            logger.info("Elevator capacity was exceeded.")
-            raise ElevatorFullError("Elevator capacity exceeded.")
+            raise ElevatorFullError(
+                f"Elevator capacity exceeded. "
+                f"Current capacity: {self.CAPACITY}"
+            )
         self.__passengers.append(passenger)
 
     def exit_elevator(self, passenger: Passenger):
@@ -254,15 +258,13 @@ class PassengerElevator(ElevatorAbstract):
         if passenger in self.passengers:
             self.__passengers.remove(passenger)
             logger.info(
-                "Passenger was exited from elevator.",
-                extra={"passenger": passenger},
+                "Passenger got out of the elevator.",
+                extra={"passenger_id": passenger.id},
             )
             return
-        logger.warning(
-            "Passenger was not in elevator.",
-            extra={"passenger": passenger},
+        raise PassengerNotInElevatorError(
+            f"Passenger {passenger} is not in elevator.",
         )
-        raise PassengerNotInElevatorError
 
     @property
     def current_direction(self) -> Direction | None:
@@ -273,7 +275,7 @@ class PassengerElevator(ElevatorAbstract):
         return self.__queue.current_floor
 
     @property
-    def selected_floors(self) -> tuple[Floor]:
+    def selected_floors(self) -> tuple[Floor, ...]:
         return self.__queue.selected_floors
 
     def add_request(self, call: Call):
@@ -289,8 +291,8 @@ class PassengerElevator(ElevatorAbstract):
         self.__queue.determine_next()
         if not self.__queue.has_requests:
             self.__status = ElevatorStatus.IDLE
-        elif self.__queue.stopped:
+        elif self.__queue.is_stopped:
             self.__status = ElevatorStatus.WAITING_ON_THE_FLOOR
         else:
             self.__status = ElevatorStatus.IN_MOVEMENT
-        logger.info("Elevator was moved.", extra={"status": self.__status})
+        logger.info("Elevator moved.", extra={"status": self.__status})
