@@ -63,7 +63,7 @@ class Passenger:
 
 
 class ElevatorQueueAbstract(abc.ABC):
-    """Implementation of algorithm for servicing elevator call queue."""
+    """Abstract class for algorithm for servicing elevator call queue."""
 
     @property
     @abc.abstractmethod
@@ -95,6 +95,7 @@ class ElevatorQueueAbstract(abc.ABC):
 
 
 class ElevatorAbstract(abc.ABC):
+    """Abstract class for elevator implementation."""
 
     MAX_FLOOR: int
     MIN_FLOOR: int
