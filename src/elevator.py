@@ -163,9 +163,6 @@ class ElevatorOPSAQueue(ElevatorQueueAbstract):
                     in_current_direction=direction is not None,
                 )
                 return self.__compare_direction(farthest_selected_floor)
-                # if farthest_selected_floor > floor:
-                #     return Direction.UP
-                # return Direction.DOWN
 
             for call in self.__selected_floors:
                 compare = get_compare_operator(direction)
